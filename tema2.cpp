@@ -19,7 +19,7 @@
 
 using namespace std;
 
-ofstream fout("debug.out");
+ofstream fout("debug1.out");
 
 struct my_file {
     string file_name;
@@ -70,43 +70,59 @@ void *download_thread_func(void *arg)
         }
         // start requesting
         int total = wanted_hashes.size();
-        int i = 0, local;
+        int i = 0, local = 0;
         my_file new_file;
         new_file.file_name = missing;
-        // while (i < total) {
-        //     MPI_Send(&i, 1, MPI_INT, effort[index].first, 2, MPI_COMM_WORLD);
-        //     MPI_Send(missing.c_str(), MAX_FILENAME, MPI_CHAR, effort[index].first, 2, MPI_COMM_WORLD);
-        //     MPI_Recv(&i, 1, MPI_INT, effort[index].first, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        //     if (i == -1) {
-        //         // cout << "Seq not found!\n";
-        //     } else {
-        //         char buf[HASH_SIZE + 1];
-        //         MPI_Recv(buf, HASH_SIZE, MPI_CHAR, effort[index].first, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        //         buf[HASH_SIZE] = '\0';
-        //         new_file.fileParts.push_back(string(buf));
-        //         i++;
-        //         local++;
-        //     }
-        //     index = (index + 1) % effort.size();
-        //     if (local == 10) {
-        //         int num;
-        //         MPI_Send("Update", MAX_FILENAME, MPI_CHAR, TRACKER_RANK, 1, MPI_COMM_WORLD);
-        //         MPI_Send(missing.c_str(), MAX_FILENAME, MPI_CHAR, TRACKER_RANK,1, MPI_COMM_WORLD);
-        //         MPI_Recv(&num, 1, MPI_INT, TRACKER_RANK, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        //         effort.clear();
-        //         for (int i = 0; i < num; i++) {
-        //             int seed;
-        //             MPI_Recv(&seed, 1, MPI_INT, TRACKER_RANK, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        //             effort.push_back(make_pair(seed, 0));
-        //         }
-        //         index = 0;
-        //     }
-        // }
-        // files.push_back(new_file);  
+        // cout << rank << " " << missing << "\n";
+        // cout << total << "\n";
+        while (i < total) {
+            MPI_Send("NRequest", 9, MPI_CHAR, effort[index].first, 4, MPI_COMM_WORLD);
+            MPI_Send(wanted_hashes[i].c_str(), HASH_SIZE, MPI_CHAR, effort[index].first, 3, MPI_COMM_WORLD);
+            int rec;
+            char response[15];
+            MPI_Recv(response, 15, MPI_CHAR, effort[index].first, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            response[14] = '\0';
+            if (string(response) == "OK") {
+                // cout << rank << " "<< "found part" << i << "\n";
+                new_file.fileParts.push_back(wanted_hashes.at(i));
+                i++;
+                local++;
+                // if (i == total)
+                //     break;
+            }  
+            index = (index + 1) % effort.size();
+            if (string(response) == "NOT OK") {
+                // cout << "Trying again at index: " << index << "\n";
+            }
+            if (local == 10) {
+                int num;
+                MPI_Send("Update", MAX_FILENAME, MPI_CHAR, TRACKER_RANK, 1, MPI_COMM_WORLD);
+                MPI_Send(missing.c_str(), MAX_FILENAME, MPI_CHAR, TRACKER_RANK, 4, MPI_COMM_WORLD);
+                cout <<"sent :" << missing << "\n";
+                MPI_Recv(&num, 1, MPI_INT, TRACKER_RANK, 5, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                // effort.clear();
+                for (int i = 0; i < num; i++) {
+                    int seed;
+                //     MPI_Recv(&seed, 1, MPI_INT, TRACKER_RANK, 5, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                //     effort.push_back(make_pair(seed, 0));
+                }
+                // fout << rank << " " << " " << missing << " " << i << "\n";
+                local = 0;
+            }
+        }
+        files.push_back(new_file);
+        int idx = 0;
+        ofstream out(string("client" + to_string(rank) + "_" + missing));
+        for (string hash : new_file.fileParts)  {
+            idx++;
+            if (idx != new_file.fileParts.size())
+                out << hash << "\n";
+            else
+                out << hash;
+        }
     }
     const char* exitMessage = "EXIT";
     MPI_Send(exitMessage, MAX_FILENAME, MPI_CHAR, TRACKER_RANK, 1, MPI_COMM_WORLD);
-    
     return NULL;
 }
 
@@ -114,26 +130,31 @@ void *download_thread_func(void *arg)
 void *upload_thread_func(void *arg)
 {
     int rank = *(int*) arg;
-    // while (1) {
-    //     MPI_Status status;
-    //     int index;
-    //     MPI_Recv(&index, 1, MPI_INT, MPI_ANY_SOURCE, 2, MPI_COMM_WORLD, &status);
-    //     char buf[MAX_FILENAME + 1];
-    //     MPI_Recv(buf, MAX_FILENAME, MPI_CHAR, status.MPI_SOURCE, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    //     buf[MAX_FILENAME] = '\0';
-    //     for (int i = 0; i < files.size(); i++) {
-    //         if (files.at(i).file_name == string(buf)) {
-    //             if (files.at(i).fileParts.size() - 1 < i) {
-    //                 int a = -1;
-    //                 MPI_Send(&a, 1, MPI_INT, status.MPI_SOURCE, 2, MPI_COMM_WORLD);
-    //             } else {
-    //                 int a = 1;
-    //                 MPI_Send(&a, 1, MPI_INT, status.MPI_SOURCE, 2, MPI_COMM_WORLD);
-    //                 MPI_Send(files.at(i).fileParts.at(index).c_str(), HASH_SIZE, MPI_CHAR, status.MPI_SOURCE, 2, MPI_COMM_WORLD);
-    //             }
-    //         }
-    //     }
-    // }
+    while (1) {
+        MPI_Status status;
+        char comm[9];
+        MPI_Recv(comm, 9, MPI_CHAR, MPI_ANY_SOURCE, 4, MPI_COMM_WORLD, &status);
+        comm[9] = '\0';
+        if (string(comm) == "Shutdown") {
+            break;
+        }
+        char buf[HASH_SIZE+ 1];
+        MPI_Recv(buf, HASH_SIZE, MPI_CHAR, MPI_ANY_SOURCE, 3, MPI_COMM_WORLD, &status);
+        buf[HASH_SIZE] = '\0';
+        string hash(buf);
+        bool found = false;
+        for (int i = 0; i < files.size(); i++) {
+            for (string my_hash : files.at(i).fileParts) {
+                if (my_hash == hash) {
+                    MPI_Send("OK", 15, MPI_CHAR, status.MPI_SOURCE, 2, MPI_COMM_WORLD);
+                    found = true;
+                }
+            }
+        }
+        if (not found) {
+            MPI_Send("NOT OK", 15, MPI_CHAR, status.MPI_SOURCE, 2, MPI_COMM_WORLD);
+        }
+    }
     return NULL;
 }
 
@@ -151,24 +172,16 @@ void tracker(int numtasks, int rank) {
             database[string(buffer)].seeds.push_back(i);
             int num_parts;
             MPI_Recv(&num_parts, 1, MPI_INT, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            // fout << string(buffer) << "\n";
             for (int idx = 0; idx < num_parts; idx++) {
                 char *buff = new char[HASH_SIZE + 1];
                 MPI_Recv(buff, HASH_SIZE, MPI_CHAR, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 buff[HASH_SIZE] = '\0';
                 if (database[string(buffer)].hashes.size() <= num_parts)
                     database[string(buffer)].hashes.push_back(string(buff));
-                // fout << string(buff) << "\n";
             }
         }
     }
-    
-    // for (auto it : database) {
-    //     cout << "\n"<< it.first << "\nseeds: ";
-    //     for (int i = 0; i < it.second.seeds.size(); i++) {
-    //         cout << it.second.seeds[i] << " ";
-    //     }
-    // }
+
     for (int i = 1; i < numtasks; i++) {
         MPI_Send("ACK", 4, MPI_CHAR, i, 0, MPI_COMM_WORLD);
     }
@@ -185,18 +198,20 @@ void tracker(int numtasks, int rank) {
         }
         if (to_be_added == "Update") {
             char filename[MAX_FILENAME + 1];
-            MPI_Recv(filename, MAX_FILENAME, MPI_CHAR, status.MPI_SOURCE, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            int x = static_cast<int>(database[to_be_added].seeds.size());
-            MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
-            for (int seed : database[to_be_added].seeds) {
-                MPI_Send(&seed, 1, MPI_INT, status.MPI_SOURCE, 1, MPI_COMM_WORLD);
-            }
+            MPI_Recv(filename, MAX_FILENAME, MPI_CHAR, status.MPI_SOURCE, 4, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            filename[MAX_FILENAME] = '\0';
+            cout <<"received: " <<  string(filename) << "\n";
+            int x = static_cast<int>(database[string(filename)].seeds.size());
+            MPI_Send(&x, 1, MPI_INT, status.MPI_SOURCE, 5, MPI_COMM_WORLD);
+            // for (int seed : database[string(filename)].seeds) {
+            //     MPI_Send(&seed, 1, MPI_INT, status.MPI_SOURCE, 5, MPI_COMM_WORLD);
+            // }
             continue;
         }
         if (ctr == numtasks - 1) {
-            // for (int i = 0; i < numtasks; i++) {
-            //     MPI_Send("Shutdown", 9, MPI_CHAR, i, 2, MPI_COMM_WORLD);
-            // }
+            for (int i = 1; i < numtasks; i++) {
+                MPI_Send("Shutdown", 9, MPI_CHAR, i, 4, MPI_COMM_WORLD);
+            }
             break;
         }
         // for (auto it : database) {
@@ -215,7 +230,6 @@ void tracker(int numtasks, int rank) {
         }
         if (find(database[to_be_added].seeds.begin(),database[to_be_added].seeds.end(), status.MPI_SOURCE) == database[to_be_added].seeds.end() && to_be_added != "EXIT") {
             database[to_be_added].seeds.push_back(status.MPI_SOURCE);
-            // cout << status.MPI_SOURCE <<" for " << to_be_added << "\n";
         }
     }
 }
