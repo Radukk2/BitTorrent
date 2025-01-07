@@ -1,0 +1,24 @@
+# Tema 2 APD - BitTorrent Protocol
+
+# Initialize
+    In the first place, all the clients are going to send to the tracker the number of files, the names of
+the files, the number of segments, and their hashes. The tracker receives all these parts and stores them in, a
+database that only it has acces to, where it keeps track of all the files, who is seeder/peer for them, and 
+which hashes does that file contain. After all the clients have shared with the tracker what they own, the 
+tracker sends back to all the clients an acknowledge message to inform each user that requests can begin.
+
+# Client 
+    The client then makes a list of all its wanted files, that is kept globally, so both upload and download can acces it.
+
+# Tracker sharing
+    The tracker is like a server that processes requests. These requests can be of 3 types: file request, update
+request and exit request. The file request indicates that a file is being requested. The tracker informs the requester
+of how many seeds does that file have who are those seeds, the number of hashes and the hashes. Than, the requester is added to the peer list of that file, because it started transfering files. The update request has the role to inform the requester if the list of seeders/peers is being updated. It sends its size and the all of the seeders/peers ids. The exit request informs the tracker that every file that use requested has been received. When all the users have sent an exit request the tracker breaks out of the while, and sends a shutdown message to all the clients, to inform them they can finish their execution.
+
+# Client Downloading
+    When a client wants to download some file, it shares with the tracker what file it intends to obtain. After that the client
+should receive a list of the seeds/peeers that might have te segments. Then it receives a list of hashes of those segments, that it stores locally. Than for each file, it makes a request to one of the seeds/peers for one of the segments, using its hash, in order. If the sgemnet matches the hash, it is stored in the user's list of files. If a peer that does not have the desired segment is accesed, than it returns that it does the segment was not found, and the search moves on to another seed/peer. When the file is entirely found, it prints its content in a given file.
+
+# Client Uploading
+    When a client is requested to upload a file to another client, first of the all, it checks the tag received. If the tag is
+"Shutdown", it means that all the files have been uploaded and the upload can be shutdown. If not, than it receives a hash, and it checks if the hash is owned by me. If it is it send to the source a message to announce the source the hash can be added to the source's list, if not then it sends to the source a message that the hash was not found. 
