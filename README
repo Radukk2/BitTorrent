@@ -1,4 +1,4 @@
-# Tema 2 APD - BitTorrent Protocol
+BitTorrent Protocol Implementation
 
 # Initialize
     In the first place, all the clients are going to send to the tracker the number of files, the names of
